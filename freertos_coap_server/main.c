@@ -69,7 +69,6 @@ NRF_LOG_MODULE_REGISTER();
 
 #include "app_timer.h"
 #include "bsp_thread.h"
-#include "thread_coap_utils.h"
 #include "thread_utils.h"
 
 #include <openthread/instance.h>
