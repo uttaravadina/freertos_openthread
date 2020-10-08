@@ -10,7 +10,7 @@ This project is an attempt to implement the code from mqttsn_client_subscriber i
 ## How to run:
 Copy files into an example folder of nRF5 SDK for Thread and Zigbee. Version 2.0.0 was used. 
 
-Use J-link RTT viewer for debugging. 
+Use J-link RTT viewer for logging. 
 
 
 
