@@ -563,6 +563,10 @@ static void thread_stack_task(void * arg)
         
         thread_process();
         app_sched_execute();
+        if (NRF_LOG_PROCESS() == false)
+        {
+            thread_sleep();
+        }
 
         
         UNUSED_VARIABLE(ulTaskNotifyTake(pdTRUE, portMAX_DELAY));
