@@ -282,6 +282,12 @@
 
 // <h> nRF_Libraries 
 
+// <e> HARDFAULT_HANDLER_ENABLED - hardfault_handler - Hardfault handler
+//==========================================================
+#ifndef HARDFAULT_HANDLER_ENABLED
+#define HARDFAULT_HANDLER_ENABLED 1
+#endif
+// </e> HARDFAULT_HANDLER_ENABLED
 //==========================================================
 #ifndef APP_SCHEDULER_ENABLED
 #define APP_SCHEDULER_ENABLED 1

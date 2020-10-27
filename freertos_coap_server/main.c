@@ -84,7 +84,7 @@ NRF_LOG_MODULE_REGISTER();
 #define LOG_TASK_PRIORITY                1
 #define LED1_TASK_PRIORITY               1
 #define LED2_TASK_PRIORITY               1
-#define LED1_BLINK_INTERVAL              4270
+#define LED1_BLINK_INTERVAL              427
 #define LED2_BLINK_INTERVAL              472
 #define SEARCH_GATEWAY_TIMEOUT 5                                            /**< MQTT-SN Gateway discovery procedure timeout in [s]. */
 
@@ -558,8 +558,20 @@ static void thread_stack_task(void * arg)
 {
     UNUSED_PARAMETER(arg);
 
+    
+    mqttsn_init();
+
+    uint32_t err_code = mqttsn_client_search_gateway(&m_client, SEARCH_GATEWAY_TIMEOUT);
+    if (err_code != NRF_SUCCESS)
+    {
+        NRF_LOG_INFO("SEARCH GATEWAY message could not be sent. Error: 0x%x\r\n", err_code);
+    }else{
+        NRF_LOG_INFO("Search gateway message sendt");
+    }
+
     while (1)
     {
+        NRF_LOG_INFO("in loop");
         
         thread_process();
         app_sched_execute();
@@ -582,25 +594,30 @@ int main(void)
     clock_init();
     timer_init();
     bsp_board_init(BSP_INIT_LEDS);
-    thread_instance_init();
-    mqttsn_init();
+
+    NRF_LOG_INFO("fasdasd")
+
     
-    /* Connect to gateway */ 
-    uint32_t err_code = mqttsn_client_search_gateway(&m_client, SEARCH_GATEWAY_TIMEOUT);
-    if (err_code != NRF_SUCCESS)
-    {
-        NRF_LOG_INFO("SEARCH GATEWAY message could not be sent. Error: 0x%x\r\n", err_code);
-    }else{
-        NRF_LOG_INFO("Search gateway message sendt");
-    }
+    thread_instance_init();
+    
+
+     /* Connect to gateway */ 
+    
+
+
+    
+   
 
     // Start thread stack execution.
     if (pdPASS != xTaskCreate(thread_stack_task, "THR", THREAD_STACK_TASK_STACK_SIZE, NULL, 2, &m_app.thread_stack_task))
     {
         APP_ERROR_HANDLER(NRF_ERROR_NO_MEM);
     }
+    
 
 #if NRF_LOG_ENABLED
+      
+
     // Start execution.
     if (pdPASS != xTaskCreate(logger_task, "LOG", LOG_TASK_STACK_SIZE, NULL, 1, &m_app.logger_task))
     {
@@ -616,6 +633,9 @@ int main(void)
 
     /* Start FreeRTOS scheduler. */
     vTaskStartScheduler();
+
+    
+
 
     while (true)
     {
