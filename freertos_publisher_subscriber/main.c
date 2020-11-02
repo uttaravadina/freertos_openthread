@@ -159,12 +159,18 @@ static mqttsn_topic_t       m_topic            =                            /**<
     Button interrupt
 */
 int i= 0;
+    uint8_t tx = 41;
 void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
 
     nrf_drv_gpiote_out_toggle(PIN_OUT);
     NRF_LOG_INFO("interrupt flag high %d", i++);
-    
+    tx++;
+    uint32_t ec = mqttsn_client_publish(&m_client, m_topic.topic_id, &tx, 1, &m_msg_id);
+    if (ec != NRF_SUCCESS)
+    {
+        NRF_LOG_ERROR("PUBLISH message could not be sent. Error code: 0x%x\r\n", ec)
+    }
 }
 /**
  * @brief Function for configuring: PIN_IN pin for input, PIN_OUT pin for output,
@@ -410,6 +416,10 @@ void mqttsn_evt_handler(mqttsn_client_t * p_client, mqttsn_event_t * p_event)
         case MQTTSN_EVENT_REGISTERED:
             NRF_LOG_INFO("MQTT-SN event: Client registered topic.\r\n");
             regack_callback(p_event);
+            break;
+
+        case MQTTSN_EVENT_PUBLISHED:
+            NRF_LOG_INFO("MQTT-SN event: Client has successfully published content.\r\n");
             break;
 
         case MQTTSN_EVENT_SUBSCRIBED:
