@@ -137,6 +137,7 @@ TaskHandle_t  led_toggle_task_handle;   /**< Reference to LED0 toggling FreeRTOS
 
 
 #define MQTT_SUB "v1/sub"
+#define MQTT_PUB "v1/pub"
 #define MQTT_ID MQTT_SUB "-id"
 
 
@@ -144,29 +145,39 @@ static mqttsn_client_t      m_client;                                       /**<
 static mqttsn_remote_t      m_gateway_addr;                                 /**< A gateway address. */
 static uint8_t              m_gateway_id;                                   /**< A gateway ID. */
 static mqttsn_connect_opt_t m_connect_opt;                                  /**< Connect options for the MQTT-SN client. */
-static uint16_t             m_msg_id           = 0;                         /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
+static uint16_t             m_msg_id_sub           = 0;                         /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
+static uint16_t             m_msg_id_pub           = 0;                         /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
+
 // static bool                 m_shall_subscribe  = false;                     /**< Stores whether the MQTT-SN client is trying to change its subscription state. */
 static bool                 m_subscribed       = 0;                         /**< Current subscription state. */
 static char                 m_client_id[]    =  MQTT_ID;      /**< The MQTT-SN Client's ID. */
-static char                 m_topic_name[] = MQTT_SUB;        /**< Name of the topic to subscribe to. */
-static mqttsn_topic_t       m_topic            =                            /**< Topic corresponding to subscriber's BSP_LED_2. */
+static char                 m_topic_pub_name[]   =  MQTT_PUB;        /**< Name of the topic to subscribe to. */
+static mqttsn_topic_t       m_topic_pub            =                            /**< Topic corresponding to subscriber's BSP_LED_2. */
 {
-    .p_topic_name = (unsigned char *)m_topic_name,
+    .p_topic_name = (unsigned char *)m_topic_pub_name,
     .topic_id     = 0,
 };
+
+static char                 m_topic_sub_name[] = MQTT_SUB;        /**< Name of the topic to subscribe to. */
+static mqttsn_topic_t       m_topic_sub        =
+{
+    .p_topic_name = (unsigned char *)m_topic_sub_name,
+    .topic_id     = 0,
+};
+
 
 /*
     Button interrupt
 */
 int i= 0;
-    uint8_t tx = 41;
+uint8_t tx = 41;
 void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
 
     nrf_drv_gpiote_out_toggle(PIN_OUT);
     NRF_LOG_INFO("interrupt flag high %d", i++);
     tx++;
-    uint32_t ec = mqttsn_client_publish(&m_client, m_topic.topic_id, &tx, 1, &m_msg_id);
+    uint32_t ec = mqttsn_client_publish(&m_client, m_topic_pub.topic_id, &tx, 1, &m_msg_id_pub);
     if (ec != NRF_SUCCESS)
     {
         NRF_LOG_ERROR("PUBLISH message could not be sent. Error code: 0x%x\r\n", ec)
@@ -281,12 +292,12 @@ static void gateway_info_callback(mqttsn_event_t * p_event)
 
 static void subscribe(void)
 {
-    uint8_t  topic_name_len = strlen(m_topic_name);
+    uint8_t  topic_sub_name_len = strlen(m_topic_sub_name);
     uint32_t err_code       = NRF_SUCCESS;
 
     if (m_subscribed)
     {
-        err_code = mqttsn_client_unsubscribe(&m_client, m_topic.p_topic_name, topic_name_len, &m_msg_id);
+        err_code = mqttsn_client_unsubscribe(&m_client, m_topic_sub.p_topic_name, topic_sub_name_len, &m_msg_id_sub);
         if (err_code != NRF_SUCCESS)
         {
             NRF_LOG_ERROR("UNSUBSCRIBE message could not be sent.\r\n");
@@ -298,7 +309,7 @@ static void subscribe(void)
     }
     else
     {
-        err_code = mqttsn_client_subscribe(&m_client, m_topic.p_topic_name, topic_name_len, &m_msg_id);
+        err_code = mqttsn_client_subscribe(&m_client, m_topic_sub.p_topic_name, topic_sub_name_len, &m_msg_id_sub);
         if (err_code != NRF_SUCCESS)
         {
             NRF_LOG_ERROR("SUBSCRIBE message could not be sent.\r\n");
@@ -319,9 +330,9 @@ static void connected_callback(void)
     light_on();
 
     uint32_t err_code = mqttsn_client_topic_register(&m_client,
-                                                     m_topic.p_topic_name,
-                                                     strlen(m_topic_name),
-                                                     &m_msg_id);
+                                                     m_topic_pub.p_topic_name,
+                                                     strlen(m_topic_pub_name),
+                                                     &m_msg_id_pub);
     if (err_code != NRF_SUCCESS)
     {
         NRF_LOG_ERROR("REGISTER message could not be sent. Error code: 0x%x\r\n", err_code);
@@ -344,7 +355,7 @@ static void disconnected_callback(void)
  */
 static void regack_callback(mqttsn_event_t * p_event)
 {
-    m_topic.topic_id = p_event->event_data.registered.packet.topic.topic_id;
+    m_topic_pub.topic_id = p_event->event_data.registered.packet.topic.topic_id;
     NRF_LOG_INFO("MQTT-SN event: Topic has been registered with ID: %d.\r\n",
                  p_event->event_data.registered.packet.topic.topic_id);
 }
@@ -352,8 +363,8 @@ static void regack_callback(mqttsn_event_t * p_event)
 
 static void received_callback(mqttsn_event_t * p_event)
 {
-    if (p_event->event_data.published.packet.topic.topic_id == m_topic.topic_id)
-    {
+    // if (p_event->event_data.published.packet.topic.topic_id == m_topic_sub.topic_id)
+    // {
         char my_string[33];
 
 
@@ -367,11 +378,11 @@ static void received_callback(mqttsn_event_t * p_event)
         NRF_LOG_INFO("message: %s", my_string);
 
 
-    }
-    else
-    {
-        NRF_LOG_INFO("MQTT-SN event: Content to unsubscribed topic received. Dropping packet.\r\n");
-    }
+    // }
+    // else
+    // {
+    //     NRF_LOG_INFO("MQTT-SN event: Content to unsubscribed topic received. Dropping packet.\r\n");
+    // }
 }
 
 
