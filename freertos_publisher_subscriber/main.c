@@ -49,6 +49,7 @@
  *
  */
 
+
 /* button interrupt */
 #include "nrf.h"
 #include "nrf_drv_gpiote.h"
@@ -141,25 +142,30 @@ TaskHandle_t  led_toggle_task_handle;   /**< Reference to LED0 toggling FreeRTOS
 #define MQTT_ID MQTT_SUB "-id"
 
 
-static mqttsn_client_t      m_client;                                       /**< An MQTT-SN client instance. */
-static mqttsn_remote_t      m_gateway_addr;                                 /**< A gateway address. */
-static uint8_t              m_gateway_id;                                   /**< A gateway ID. */
-static mqttsn_connect_opt_t m_connect_opt;                                  /**< Connect options for the MQTT-SN client. */
-static uint16_t             m_msg_id_sub           = 0;                         /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
-static uint16_t             m_msg_id_pub           = 0;                         /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
+static mqttsn_client_t      m_client;                          /**< An MQTT-SN client instance. */
+static mqttsn_remote_t      m_gateway_addr;                    /**< A gateway address. */
+static uint8_t              m_gateway_id;                      /**< A gateway ID. */
+static mqttsn_connect_opt_t m_connect_opt;                     /**< Connect options for the MQTT-SN client. */
+static uint16_t             m_msg_id_sub           = 0;        /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
+static uint16_t             m_msg_id_pub           = 0;        /**< Message ID thrown with MQTTSN_EVENT_TIMEOUT. */
 
-// static bool                 m_shall_subscribe  = false;                     /**< Stores whether the MQTT-SN client is trying to change its subscription state. */
-static bool                 m_subscribed       = 0;                         /**< Current subscription state. */
+static bool                 m_subscribed       = 0;            /**< Current subscription state. */
 static char                 m_client_id[]    =  MQTT_ID;      /**< The MQTT-SN Client's ID. */
-static char                 m_topic_pub_name[]   =  MQTT_PUB;        /**< Name of the topic to subscribe to. */
-static mqttsn_topic_t       m_topic_pub            =                            /**< Topic corresponding to subscriber's BSP_LED_2. */
+
+
+#define MQTT_SUB "v1/sub"
+#define MQTT_PUB "v1/pub"
+#define MESSAGE_LENGTH 12                                      /**< Length of message. Max 255>*/
+
+static char                 m_topic_pub_name[]   =  MQTT_PUB;  /**< Name of the topic to publish to. */
+static mqttsn_topic_t       m_topic_pub            =           /**< Topic corresponding to publisher>*/
 {
     .p_topic_name = (unsigned char *)m_topic_pub_name,
     .topic_id     = 0,
 };
 
-static char                 m_topic_sub_name[] = MQTT_SUB;        /**< Name of the topic to subscribe to. */
-static mqttsn_topic_t       m_topic_sub        =
+static char                 m_topic_sub_name[] = MQTT_SUB;     /**< Name of the topic to subscribe to. */
+static mqttsn_topic_t       m_topic_sub        =               
 {
     .p_topic_name = (unsigned char *)m_topic_sub_name,
     .topic_id     = 0,
@@ -169,15 +175,14 @@ static mqttsn_topic_t       m_topic_sub        =
 /*
     Button interrupt
 */
-int i= 0;
-uint8_t tx = 41;
+
+ 
+uint8_t tx_message[MESSAGE_LENGTH] = "publish msg"; 
 void in_pin_handler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
 
     nrf_drv_gpiote_out_toggle(PIN_OUT);
-    NRF_LOG_INFO("interrupt flag high %d", i++);
-    tx++;
-    uint32_t ec = mqttsn_client_publish(&m_client, m_topic_pub.topic_id, &tx, 1, &m_msg_id_pub);
+    uint32_t ec = mqttsn_client_publish(&m_client, m_topic_pub.topic_id, tx_message, MESSAGE_LENGTH, &m_msg_id_pub);
     if (ec != NRF_SUCCESS)
     {
         NRF_LOG_ERROR("PUBLISH message could not be sent. Error code: 0x%x\r\n", ec)
@@ -229,9 +234,6 @@ static inline void light_off(void)
 }
 
 
-
-
-
 /***************************************************************************************************
  * @section Signal handling
  **************************************************************************************************/
@@ -260,9 +262,6 @@ static void state_changed_callback(uint32_t flags, void * p_context)
     NRF_LOG_INFO("State changed! Flags: 0x%08x Current role: %d\r\n",
                  flags, otThreadGetDeviceRole(p_context));
 }
-
-
-
 
 
 /**@brief Initializes MQTT-SN client's connection options. */
@@ -363,26 +362,15 @@ static void regack_callback(mqttsn_event_t * p_event)
 
 static void received_callback(mqttsn_event_t * p_event)
 {
-    // if (p_event->event_data.published.packet.topic.topic_id == m_topic_sub.topic_id)
-    // {
-        char my_string[33];
-
-
+        char my_string[MESSAGE_LENGTH+1];
         NRF_LOG_INFO("MQTT-SN event: Content to subscribed topic received.\r\n");
 
-        for(int i = 0; i < 32; i++){
+        for(int i = 0; i < MESSAGE_LENGTH; i++)
+        {
             my_string[i] = p_event->event_data.published.p_payload[i];
         }
-        my_string[32] = 0; 
-
+        my_string[MESSAGE_LENGTH] = 0; 
         NRF_LOG_INFO("message: %s", my_string);
-
-
-    // }
-    // else
-    // {
-    //     NRF_LOG_INFO("MQTT-SN event: Content to unsubscribed topic received. Dropping packet.\r\n");
-    // }
 }
 
 
@@ -405,8 +393,6 @@ static void searchgw_timeout_callback(mqttsn_event_t * p_event)
 /**@brief Function for handling MQTT-SN events. */
 void mqttsn_evt_handler(mqttsn_client_t * p_client, mqttsn_event_t * p_event)
 {
-
-
     switch(p_event->event_id)
     {
         case MQTTSN_EVENT_GATEWAY_FOUND:
@@ -539,22 +525,7 @@ static void clock_init(void)
 }
 
 
-/***************************************************************************************************
- * @section Leds
- **************************************************************************************************/
 
-
-/***************************************************************************************************
- * @section Idle hook
- **************************************************************************************************/
-
-// void vApplicationIdleHook( void )
-// {
-//     if (m_app.logger_task)
-//     {
-//         vTaskResume(m_app.logger_task);
-//     }
-// }
 
 #if NRF_LOG_ENABLED
 /**@brief Task for handling the logger.
@@ -622,19 +593,7 @@ static void scheduler_init(void)
 
 /* Tasks */ 
 
-static void led1_task(void * arg)
-{
-    UNUSED_PARAMETER(arg);
 
-    while(1)
-    {
-        LEDS_INVERT(BSP_LED_2_MASK);
-        
-        vTaskDelay(LED1_BLINK_INTERVAL);
-
-     
-    }
-}
 
 
 static void thread_stack_task(void * arg)
@@ -651,18 +610,10 @@ static void thread_stack_task(void * arg)
     }else{
         NRF_LOG_INFO("Search gateway message sendt");
     }
-    int i = 0;
-    int j = 0;
 
     while (1)
     {   
 
-        i++;
-        if(i >= 10){
-            NRF_LOG_INFO("it: %d \n\r", j++);
-            i = 0;
-        }
-        
         thread_process();
         app_sched_execute();
         if (NRF_LOG_PROCESS() == false)
@@ -675,38 +626,28 @@ static void thread_stack_task(void * arg)
     }
 }
 
-
-int main(void)
-{
+void initialize_system(){
     log_init();
     scheduler_init();
-
     clock_init();
     timer_init();
     bsp_board_init(BSP_INIT_LEDS);
     gpio_init();
+    thread_instance_init(); 
 
-    NRF_LOG_INFO("fasdasd")
+}
 
+int main(void)
+{
+    initialize_system();
     
-    thread_instance_init();
-    
-
-     /* Connect to gateway */ 
-    
-
-
-    
-   
-
     // Start thread stack execution.
     if (pdPASS != xTaskCreate(thread_stack_task, "THR", THREAD_STACK_TASK_STACK_SIZE, NULL, 2, &m_app.thread_stack_task))
     {
         APP_ERROR_HANDLER(NRF_ERROR_NO_MEM);
     }
     
-
-#if NRF_LOG_ENABLED
+    #if NRF_LOG_ENABLED
       
 
     // Start execution.
@@ -714,13 +655,7 @@ int main(void)
     {
         APP_ERROR_HANDLER(NRF_ERROR_NO_MEM);
     }
-#endif //NRF_LOG_ENABLED
-
-    // Start execution.
-    if (pdPASS != xTaskCreate(led1_task, "LED1", configMINIMAL_STACK_SIZE, NULL, 1, &m_app.led1_task))
-    {
-        APP_ERROR_HANDLER(NRF_ERROR_NO_MEM);
-    }
+    #endif //NRF_LOG_ENABLED
 
     /* Start FreeRTOS scheduler. */
     vTaskStartScheduler();
